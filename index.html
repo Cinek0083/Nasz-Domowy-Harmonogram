@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rodzinny Harmonogram Obowiązków</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: A user-friendly dashboard with four main interactive views: "Today's Tasks," "Weekly Schedule," "Laundry Schedule," and "Monthly Tasks." This structure was chosen to move away from a static document to a task-oriented application. The default "Today's Tasks" view provides immediate, actionable information. Filtering by family member across all views allows for personalization and clarity of responsibilities. A visual chart is included to show task distribution, promoting a sense of fairness and teamwork. This interactive, non-linear structure is more engaging and easier to navigate for all family members than a simple list. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Daily/Weekly/Monthly tasks per person. -> Goal: Inform, Organize, Compare. -> Viz/Presentation: Interactive cards and checklists, filterable by person. Chart.js doughnut chart for workload visualization. -> Interaction: Users click tabs to switch views and filter tasks by person. Checkboxes provide satisfaction of completion. -> Justification: This interactive model is more engaging than a static table. It allows users to quickly see what they are responsible for. -> Library/Method: Vanilla JS for logic, Tailwind for styling, Chart.js for visualization. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF8;
+            color: #3f3c3a;
+        }
+        .nav-btn {
+            transition: all 0.3s ease;
+        }
+        .nav-btn.active {
+            background-color: #DDCDBA;
+            color: #3f3c3a;
+            font-weight: 600;
+        }
+        .person-btn {
+            transition: all 0.3s ease;
+        }
+        .person-btn.active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .task-card {
+            transition: all 0.3s ease;
+            display: flex;
+        }
+        .task-item:hover {
+            background-color: #F7F2EC;
+        }
+        .hidden-view {
+            display: none;
+        }
+        .chart-container {
+            position: relative; 
+            width: 100%; 
+            max-width: 400px; 
+            margin-left: auto; 
+            margin-right: auto; 
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-[#3f3c3a]">Nasz Domowy Harmonogram</h1>
+            <p class="text-lg text-gray-600 mt-2">Centralne miejsce na wszystkie nasze rodzinne zadania i obowiązki.</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center gap-2 mb-8">
+            <button id="nav-today" class="nav-btn py-2 px-4 rounded-full bg-white shadow-sm">Dzisiejsze Zadania</button>
+            <button id="nav-weekly" class="nav-btn py-2 px-4 rounded-full bg-white shadow-sm">Tygodniowy Harmonogram</button>
+            <button id="nav-laundry" class="nav-btn py-2 px-4 rounded-full bg-white shadow-sm">Harmonogram Prania</button>
+            <button id="nav-monthly" class="nav-btn py-2 px-4 rounded-full bg-white shadow-sm">Miesięczne Zadania</button>
+        </nav>
+
+        <div id="view-today" class="view">
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-bold mb-1">Dzisiejsze Zadania</h2>
+                <p id="today-date" class="text-gray-500 mb-6"></p>
+                <ul id="today-tasks-list" class="space-y-3">
+                </ul>
+            </div>
+        </div>
+
+        <div id="view-weekly" class="view hidden-view">
+             <div class="text-center mb-4">
+                <h2 class="text-2xl font-bold">Tygodniowe Sprzątanie</h2>
+                <p class="text-gray-600 mt-1">Oto główny plan sprzątania. Kliknij imię, aby filtrować zadania.</p>
+            </div>
+            <div class="flex flex-wrap justify-center gap-3 mb-8">
+                <button class="person-btn all-filter active py-2 px-4 rounded-full text-sm font-medium bg-gray-200" data-person="Wszyscy">Wszyscy</button>
+                <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-blue-100 text-blue-800" data-person="Marcin">Marcin</button>
+                <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-pink-100 text-pink-800" data-person="Monika">Monika</button>
+                <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-purple-100 text-purple-800" data-person="Oliwia">Oliwia</button>
+                <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-green-100 text-green-800" data-person="Maja">Maja</button>
+                <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800" data-person="Izabella">Izabella</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="weekly-tasks-container">
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 mt-8">
+                <h3 class="text-xl font-bold text-center mb-4">Podział Zadań Tygodniowych</h3>
+                <div class="chart-container">
+                    <canvas id="taskChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-laundry" class="view hidden-view">
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-bold text-center mb-6">Tygodniowy Harmonogram Prania</h2>
+                <div id="laundry-schedule-container" class="space-y-4">
+                </div>
+            </div>
+        </div>
+
+        <div id="view-monthly" class="view hidden-view">
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-bold text-center mb-6">Miesięczne Zadania Konserwacyjne</h2>
+                 <div class="flex flex-wrap justify-center gap-3 mb-8">
+                    <button class="person-btn all-filter active py-2 px-4 rounded-full text-sm font-medium bg-gray-200" data-person="Wszyscy">Wszyscy</button>
+                    <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-blue-100 text-blue-800" data-person="Marcin">Marcin</button>
+                    <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-pink-100 text-pink-800" data-person="Monika">Monika</button>
+                    <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-purple-100 text-purple-800" data-person="Oliwia">Oliwia</button>
+                    <button class="person-btn py-2 px-4 rounded-full text-sm font-medium bg-green-100 text-green-800" data-person="Maja">Maja</button>
+                </div>
+                <div id="monthly-tasks-container" class="space-y-4">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const choreData = {
+            people: ["Marcin", "Monika", "Oliwia", "Maja", "Izabella", "Wszyscy"],
+            personColors: {
+                "Marcin": "bg-blue-100 text-blue-800",
+                "Monika": "bg-pink-100 text-pink-800",
+                "Oliwia": "bg-purple-100 text-purple-800",
+                "Maja": "bg-green-100 text-green-800",
+                "Izabella": "bg-yellow-100 text-yellow-800",
+                "Wszyscy": "bg-gray-100 text-gray-800",
+            },
+            daily: [
+                { task: "Pościel swoje łóżko", who: "Wszyscy", time: "Rano" },
+                { task: "Opróżnij zmywarkę", who: "Marcin", time: "Rano" },
+                { task: "Szybko przetrzyj zlew i lustro", who: "Izabella", time: "Rano", location: "Toaleta (Parter)" },
+                { task: "Nakryj do stołu na kolację", who: "Maja", time: "Wieczór", location: "Salon" },
+                { task: "Zbierz talerze ze stołu po kolacji", who: "Izabella", time: "Wieczór", location: "Salon" },
+                { task: "Załaduj zmywarkę", who: "Oliwia", time: "Wieczór", location: "Kuchnia" },
+                { task: "Przetrzyj blaty kuchenne i płytę grzewczą", who: "Monika", time: "Wieczór", location: "Kuchnia" },
+                { task: "Wyrzuć śmieci organiczne/recykling w razie potrzeby", who: "Marcin", time: "Wieczór", location: "Kuchnia" },
+                { task: "15-minutowe rodzinne sprzątanie", who: "Wszyscy", time: "Wieczór", location: "Salon" },
+            ],
+            weekly: [
+                { task: "Odkurz podłogę, zetrzyj kurze z szafki RTV i stolika", who: "Maja", location: "Salon" },
+                { task: "Umyj toaletę, zlew i lustro", who: "Izabella", location: "Toaleta" },
+                { task: "Przetrzyj zewnętrzne części urządzeń i mikrofalówkę", who: "Marcin", location: "Kuchnia" },
+                { task: "Umyj podłogę", who: "Oliwia", location: "Kuchnia" },
+                { task: "Generalne sprzątanie: kurze, porządek, odkurzanie", who: "Oliwia", location: "Sypialnia Oliwii" },
+                { task: "Generalne sprzątanie: kurze, porządek, odkurzanie", who: ["Marcin", "Monika"], location: "Sypialnia M&M" },
+                { task: "Odkurz korytarz i schody na 2. piętro", who: "Maja", location: "Korytarz na 1. piętrze" },
+                { task: "Generalne sprzątanie: kurze, porządek, odkurzanie", who: "Maja", location: "Sypialnia Mai" },
+                { task: "Generalne sprzątanie: kurze, porządek, odkurzanie", who: "Izabella", location: "Sypialnia Izabelli" },
+                { task: "Umyj prysznic, zlew i toaletę; umyj podłogę", who: "Monika", location: "Łazienka" },
+                { task: "Opróżnij kosz na śmieci w łazience", who: "Monika", location: "Łazienka" },
+                { task: "Odkurz korytarz", who: "Izabella", location: "Korytarz na 2. piętrze" },
+            ],
+            laundry: [
+                { day: "Poniedziałek", who: "Monika" },
+                { day: "Wtorek", who: "Marcin" },
+                { day: "Środa", who: "Oliwia" },
+                { day: "Czwartek", who: "Maja" },
+                { day: "Piątek", who: "Izabella" },
+                { day: "Sobota", who: "Monika", task: "Ręczniki, dywaniki łazienkowe i ścierki" },
+                { day: "Niedziela", who: "Marcin", task: "Pościel (zmiana pokoi co tydzień)" },
+            ],
+            monthly: [
+                { task: "Dokładnie umyj piekarnik", who: "Marcin", location: "Kuchnia" },
+                { task: "Wyczyść lodówkę/zamrażarkę", who: "Monika", location: "Kuchnia" },
+                { task: "Umyj okna od wewnątrz (piętrami)", who: "Oliwia", location: "Wszystkie pokoje" },
+                { task: "Przetrzyj wszystkie listwy przypodłogowe (piętrami)", who: "Maja", location: "Wszystkie pokoje" },
+                { task: "Wyczyść filtr zmywarki i uruchom cykl czyszczenia", who: "Marcin", location: "Kuchnia" },
+                { task: "Wyczyść filtr pralki i uruchom cykl czyszczenia", who: "Monika", location: "Łazienka" },
+            ]
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const views = document.querySelectorAll('.view');
+            const navButtons = document.querySelectorAll('.nav-btn');
+            const personFilterButtons = document.querySelectorAll('.person-btn');
+
+            function switchView(viewId) {
+                views.forEach(view => view.classList.add('hidden-view'));
+                document.getElementById(viewId).classList.remove('hidden-view');
+
+                navButtons.forEach(btn => {
+                    btn.classList.remove('active');
+                    if(btn.id === `nav-${viewId.split('-')[1]}`) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
+            
+            navButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const viewId = `view-${button.id.split('-')[1]}`;
+                    switchView(viewId);
+                });
+            });
+            
+            function filterTasks(person) {
+                document.querySelectorAll('.task-card').forEach(card => {
+                    if (person === 'Wszyscy' || card.dataset.person.includes(person)) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+                 document.querySelectorAll('.monthly-task-item').forEach(item => {
+                    if (person === 'Wszyscy' || item.dataset.person.includes(person)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+                 personFilterButtons.forEach(btn => btn.classList.remove('active'));
+                 document.querySelectorAll(`.person-btn[data-person="${person}"]`).forEach(b => b.classList.add('active'));
+            }
+
+            personFilterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    filterTasks(button.dataset.person);
+                });
+            });
+
+            function getTodaysTasks() {
+                const today = new Date();
+                const days = ["Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota"];
+                const dayName = days[today.getDay()];
+
+                let tasksForToday = [...choreData.daily];
+                const laundryTask = choreData.laundry.find(l => l.day === dayName);
+
+                if (laundryTask) {
+                    tasksForToday.push({
+                        task: `Pranie: ${laundryTask.task || 'Ubrania osobiste'}`,
+                        who: laundryTask.who,
+                        time: 'Cały dzień',
+                        location: 'Łazienka'
+                    });
+                }
+                
+                if (dayName === "Sobota") {
+                    choreData.weekly.forEach(task => {
+                        tasksForToday.push({
+                            task: task.task,
+                            who: Array.isArray(task.who) ? task.who.join(', ') : task.who,
+                            time: 'Tygodniowe',
+                            location: task.location
+                        });
+                    });
+                }
+                return tasksForToday;
+            }
+
+            function renderToday() {
+                const today = new Date();
+                document.getElementById('today-date').innerText = today.toLocaleDateString('pl-PL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+                const list = document.getElementById('today-tasks-list');
+                list.innerHTML = '';
+                
+                const dailyTasks = getTodaysTasks();
+
+                if (dailyTasks.length === 0) {
+                     list.innerHTML = `<li class="text-center text-gray-500">Brak zadań na dzisiaj. Miłego dnia!</li>`;
+                     return;
+                }
+
+                dailyTasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.className = 'task-item flex items-center p-3 rounded-lg border border-gray-200';
+                    const personName = Array.isArray(task.who) ? task.who.join(' i ') : task.who;
+                    const colorClass = choreData.personColors[personName] || choreData.personColors["Wszyscy"];
+
+                    li.innerHTML = `
+                        <input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-4 flex-shrink-0">
+                        <div class="flex-grow">
+                            <p class="font-medium">${task.task}</p>
+                            <p class="text-sm text-gray-500">${task.location || ''}</p>
+                        </div>
+                        <span class="${colorClass} text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${personName}</span>
+                    `;
+                    list.appendChild(li);
+                });
+            }
+
+            function renderWeekly() {
+                const container = document.getElementById('weekly-tasks-container');
+                container.innerHTML = '';
+                choreData.people.forEach(person => {
+                    if (person === "Wszyscy") return;
+                    const tasks = choreData.weekly.filter(t => Array.isArray(t.who) ? t.who.includes(person) : t.who === person);
+                    if (tasks.length === 0) return;
+
+                    const card = document.createElement('div');
+                    card.className = 'task-card flex-col bg-white p-4 rounded-xl shadow-md border border-gray-100';
+                    card.dataset.person = person;
+                    
+                    const personName = Array.isArray(person) ? person.join(' i ') : person;
+                    
+                    let taskHtml = tasks.map(task => `
+                        <li class="flex items-start py-2">
+                            <span class="text-indigo-500 mr-3 mt-1 flex-shrink-0">✓</span>
+                            <div>
+                                <p class="font-medium">${task.task}</p>
+                                <p class="text-sm text-gray-500">${task.location}</p>
+                            </div>
+                        </li>
+                    `).join('');
+
+                    card.innerHTML = `
+                        <h3 class="text-lg font-bold mb-2">Zadania dla: ${personName}</h3>
+                        <ul class="space-y-1 list-none pl-0">
+                            ${taskHtml}
+                        </ul>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+            
+            function renderLaundry() {
+                const container = document.getElementById('laundry-schedule-container');
+                container.innerHTML = '';
+                const days = ["Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota"];
+                const today = days[new Date().getDay()];
+
+                choreData.laundry.forEach(item => {
+                    const isToday = item.day === today;
+                    const card = document.createElement('div');
+                    card.className = `p-4 rounded-lg flex items-center justify-between ${isToday ? 'bg-indigo-100 border-indigo-300 border-2' : 'bg-gray-50 border'}`;
+                    
+                    const colorClass = choreData.personColors[item.who];
+                    
+                    card.innerHTML = `
+                        <div>
+                            <p class="font-bold text-lg">${item.day}</p>
+                            <p class="text-gray-600">${item.task || 'Ubrania osobiste'}</p>
+                        </div>
+                        <span class="${colorClass} text-sm font-bold py-1 px-3 rounded-full">${item.who}</span>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+            
+            function renderMonthly() {
+                const container = document.getElementById('monthly-tasks-container');
+                container.innerHTML = '';
+                choreData.monthly.forEach(task => {
+                    const item = document.createElement('div');
+                    item.className = 'monthly-task-item flex items-center justify-between p-4 bg-gray-50 rounded-lg border';
+                    item.dataset.person = task.who;
+                    
+                    const colorClass = choreData.personColors[task.who];
+
+                    item.innerHTML = `
+                        <div>
+                            <p class="font-medium">${task.task}</p>
+                            <p class="text-sm text-gray-500">${task.location}</p>
+                        </div>
+                        <span class="${colorClass} text-xs font-semibold px-2.5 py-0.5 rounded-full">${task.who}</span>
+                    `;
+                    container.appendChild(item);
+                });
+            }
+            
+            function renderChart() {
+                const taskCounts = {};
+                choreData.people.forEach(p => taskCounts[p] = 0);
+
+                choreData.weekly.forEach(task => {
+                    if (Array.isArray(task.who)) {
+                        task.who.forEach(person => taskCounts[person]++);
+                    } else if (task.who !== "Wszyscy") {
+                        taskCounts[task.who]++;
+                    }
+                });
+
+                const chartData = {
+                    labels: Object.keys(taskCounts).filter(p => p !== 'Wszyscy'),
+                    datasets: [{
+                        label: 'Zadania Tygodniowe',
+                        data: Object.values(taskCounts).filter((_, i) => Object.keys(taskCounts)[i] !== 'Wszyscy'),
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.7)',
+                            'rgba(236, 72, 153, 0.7)',
+                            'rgba(139, 92, 246, 0.7)',
+                            'rgba(34, 197, 94, 0.7)', 
+                            'rgba(234, 179, 8, 0.7)'
+                        ],
+                        borderColor: ['#fff'],
+                        borderWidth: 2
+                    }]
+                };
+
+                const ctx = document.getElementById('taskChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'top' } }
+                    }
+                });
+            }
+
+            renderToday();
+            renderWeekly();
+            renderLaundry();
+            renderMonthly();
+            renderChart();
+            switchView('view-today');
+        });
+    </script>
+</body>
+</html>
